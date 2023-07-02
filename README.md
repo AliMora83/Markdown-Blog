@@ -11,3 +11,7 @@ brew services stop mongodb-community@5.0
 mongod --config /opt/homebrew/etc/mongod.conf --fork
 mongosh
 ```
+
+## Frontend command
+
+```npm run devStart```

@@ -1,50 +1,126 @@
-const express = require('express')
-const Article = require('./../models/article')
-const router = express.Router()
+const express = require("express");
+const Article = require("./../models/article");
+const router = express.Router();
+const slugify = require("slugify");
 
-router.get('/new', (req, res) => {
-  res.render('articles/new', { article: new Article() })
-})
+router.get("/new", (req, res) => {
+  res.render("articles/new", {
+    article: new Article(),
+  });
+});
 
-router.get('/edit/:id', async (req, res) => {
-  const article = await Article.findById(req.params.id)
-  res.render('articles/edit', { article: article })
-})
+router.get(
+  "/articles/edit/:id",
+  async (req, res) => {
+    try {
+      const article = await Article.findById(
+        req.params.id
+      );
+      if (!article) {
+        return res
+          .status(404)
+          .send("Article not found");
+      }
+      res.render("articles/edit", {
+        article: article,
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).send("Server Error");
+    }
+  }
+);
 
-router.get('/:slug', async (req, res) => {
-  const article = await Article.findOne({ slug: req.params.slug })
-  if (article == null) res.redirect('/')
-  res.render('articles/show', { article: article })
-})
+router.get("/:slug", async (req, res) => {
+  try {
+    const article = await Article.findOne({
+      slug: req.params.slug,
+    });
+    if (!article) {
+      return res.redirect("/");
+    }
+    res.render("articles/show", {
+      article: article,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Server Error");
+  }
+});
 
-router.post('/', async (req, res, next) => {
-  req.article = new Article()
-  next()
-}, saveArticleAndRedirect('new'))
+router.post("/", async (req, res) => {
+  try {
+    let article = new Article({
+      title: req.body.title,
+      description: req.body.description,
+      markdown: req.body.markdown,
+      slug: slugify(req.body.title, {
+        lower: true,
+        strict: true,
+      }),
+    });
 
-router.put('/:id', async (req, res, next) => {
-  req.article = await Article.findById(req.params.id)
-  next()
-}, saveArticleAndRedirect('edit'))
+    const savedArticle = await article.save();
+    res.redirect(
+      `/articles/${savedArticle.slug}`
+    );
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Server Error");
+  }
+});
 
-router.delete('/:id', async (req, res) => {
-  await Article.findByIdAndDelete(req.params.id)
-  res.redirect('/')
-})
+router.put("/articles/:id", async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res
+      .status(400)
+      .render("articles/edit", {
+        article: req.body,
+        errors: errors.array(),
+      });
+  }
+
+  try {
+    const article = await Article.findById(
+      req.params.id
+    );
+    if (!article) {
+      return res
+        .status(404)
+        .send("Article not found");
+    }
+
+    article.title = req.body.title;
+    article.description = req.body.description;
+    article.markdown = req.body.markdown;
+    article.slug = req.body.title
+      .replace(/\s+/g, "-")
+      .toLowerCase();
+
+    await article.save();
+    res.redirect(`/articles/${article.slug}`);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Server Error");
+  }
+});
 
 function saveArticleAndRedirect(path) {
   return async (req, res) => {
-    let article = req.article
-    article.title = req.body.title
-    article.description = req.body.description
-    article.markdown = req.body.markdown
+    let article = req.article;
+    article.title = req.body.title;
+    article.description = req.body.description;
+    article.markdown = req.body.markdown;
     try {
-      article = await article.save()
-      res.redirect(`/articles/${article.slug}`)
+      article = await article.save();
+      res.redirect(`/articles/${article.slug}`);
     } catch (e) {
-      res.render(`articles/${path}`, { article: article })
+      res.render(`articles/${path}`, {
+        article: article,
+      });
     }
-  }
+  };
 }
 
-module.exports = router
+module.exports = router;
